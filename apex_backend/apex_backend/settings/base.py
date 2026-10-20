@@ -1,6 +1,9 @@
 from datetime import timedelta
 from pathlib import Path
 import os
+from urllib.parse import parse_qs, unquote, urlparse
+
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -78,7 +81,31 @@ ASGI_APPLICATION = 'apex_backend.asgi.application'
 AUTH_USER_MODEL = 'accounts.User'
 
 _db_name = os.environ.get('DB_NAME', '')
-if _db_name:
+_database_url = os.environ.get('DATABASE_URL')
+if _database_url:
+    parsed_database_url = urlparse(_database_url)
+    if parsed_database_url.scheme not in ('postgres', 'postgresql'):
+        raise ImproperlyConfigured('DATABASE_URL must use the postgres or postgresql scheme.')
+
+    database_options = {}
+    query_options = parse_qs(parsed_database_url.query)
+    if 'sslmode' in query_options:
+        database_options['sslmode'] = query_options['sslmode'][-1]
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': unquote(parsed_database_url.path.lstrip('/')),
+            'USER': unquote(parsed_database_url.username or ''),
+            'PASSWORD': unquote(parsed_database_url.password or ''),
+            'HOST': parsed_database_url.hostname or '',
+            'PORT': parsed_database_url.port or '',
+            'OPTIONS': database_options,
+            'CONN_MAX_AGE': 60,
+            'CONN_HEALTH_CHECKS': True,
+        }
+    }
+elif _db_name:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
@@ -90,6 +117,10 @@ if _db_name:
             'OPTIONS': {'charset': 'utf8mb4'},
         }
     }
+elif os.environ.get('VERCEL'):
+    raise ImproperlyConfigured(
+        'Set DATABASE_URL to a persistent PostgreSQL database before deploying on Vercel.'
+    )
 else:
     DATABASES = {
         'default': {
@@ -133,6 +164,10 @@ CHANNEL_LAYERS = {
         'CONFIG': {'hosts': [os.environ.get('REDIS_URL', 'redis://localhost:6379')]},
     }
 }
+if os.environ.get('VERCEL') and not os.environ.get('REDIS_URL'):
+    raise ImproperlyConfigured(
+        'Set REDIS_URL to a Redis-compatible service for cross-instance Channels messaging on Vercel.'
+    )
 
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
@@ -164,8 +199,13 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'APEX Platform <noreply@apex.com>')
 
 # Celery
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
-CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+if os.environ.get('VERCEL'):
+    CELERY_BROKER_URL = 'vercel://'
+    CELERY_RESULT_BACKEND = 'vercel-runtime-cache://'
+    CELERY_TASK_ACKS_LATE = True
+else:
+    CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+    CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 

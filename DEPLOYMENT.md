@@ -11,6 +11,20 @@
 - Local Vite proxy: copy `apex_frontend/.env.example` to `.env`; set `VITE_DEV_API_TARGET` and `VITE_DEV_WS_TARGET` to the local backend. These proxy values are used only by the Vite development server. Set `VITE_API_BASE_URL` and, if needed, `VITE_WS_BASE_URL` to the production API origins in the production build environment; do not ship local `.env` files.
 - Recovery repository: `https://github.com/fiddle254/Apex-loading.git`. Confirm the hosting deployment integration before deploying.
 
+## Vercel Deployment
+
+The frontend and backend are configured as two Vercel projects from this repository:
+
+1. Create a Vercel project with the root directory set to `apex_frontend`. It uses `apex_frontend/vercel.json` to build the Vite app and provide SPA route fallback.
+2. Create a second Vercel project with the root directory set to `apex_backend`. It uses Django's ASGI entrypoint and registers the Celery app as a Vercel Queues subscriber. Python 3.13 is selected by `apex_backend/.python-version`.
+3. Configure a persistent PostgreSQL database and set `DATABASE_URL` in the backend project's Vercel environment. This repository supports PostgreSQL URLs, as well as the existing MySQL variables for non-Vercel hosts. Vercel's function filesystem is not persistent; do not deploy the local SQLite database or store uploads on the function filesystem.
+4. Configure `REDIS_URL` with a Redis-compatible service that supports the Pub/Sub operations used by Channels. This is separate from Celery: Vercel Queues is the Celery broker on Vercel.
+5. Add backend environment variables: `DJANGO_SETTINGS_MODULE=apex_backend.settings.production`, `DJANGO_SECRET_KEY`, `DATABASE_URL`, `REDIS_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, and `FRONTEND_URL`. Add provider credentials (for example Cloudinary and payment/email settings) only when those features are configured. Vercel deployment hostnames are added to `ALLOWED_HOSTS` automatically; set the exact frontend origins in the CORS and CSRF lists.
+6. Add `VITE_API_BASE_URL=https://<backend-domain>/api/v1` to the frontend project's Vercel environment. The WebSocket URL is derived from this API URL; set `VITE_WS_BASE_URL=wss://<backend-domain>` only when it needs to differ. Rebuild the frontend after changing either variable.
+7. Apply reviewed Django migrations to the configured production database before directing users to the deployment. Existing SQLite or cPanel data is not copied automatically; back it up and plan a deliberate migration before switching traffic.
+
+Vercel's Django Channels WebSocket support and Vercel Queues are currently beta features. Vercel Queues runs Celery tasks through serverless subscribers rather than a persistent worker; task delivery is at least once, so tasks should remain safe to retry. WebSocket connections can close at the configured function duration and the frontend reconnects automatically. Verify these features and their current plan limits in Vercel before production use. The PostgreSQL and Redis-compatible services are external integrations and may have separate limits or charges.
+
 ## Local Validation
 
 From the repository root, install frontend dependencies with `npm ci` in `apex_frontend`. Run `npm run build` there. For linting, first resolve the current ESLint 9 configuration error (the repository has no `eslint.config.*`).

@@ -5,13 +5,24 @@ import { useWebSocket } from '../hooks/useWebSocket'
 
 const NotificationContext = createContext(null)
 
+function getWebSocketBaseUrl() {
+  if (import.meta.env.VITE_WS_BASE_URL) {
+    return import.meta.env.VITE_WS_BASE_URL.replace(/\/+$/, '')
+  }
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  const apiUrl = new URL(apiBaseUrl, window.location.origin)
+  apiUrl.protocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+  return apiUrl.origin
+}
+
 export function NotificationProvider({ children }) {
   const { user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [realtimeNotif, setRealtimeNotif] = useState(null)
 
   const wsUrl = user
-    ? `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'}/ws/notifications/`
+    ? `${getWebSocketBaseUrl()}/ws/notifications/`
     : null
 
   const handleRealtimeNotification = useCallback((msg) => {

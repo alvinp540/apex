@@ -5,22 +5,42 @@ export function useWebSocket(url, onMessage) {
 
   useEffect(() => {
     if (!url) return
-    const token = localStorage.getItem('access_token')
-    const fullUrl = token ? `${url}?token=${token}` : url
-    const ws = new WebSocket(fullUrl)
-    wsRef.current = ws
+    let ws
+    let reconnectTimer
+    let reconnectDelay = 1000
+    let disconnected = false
 
-    ws.onmessage = (e) => {
-      try {
-        onMessage(JSON.parse(e.data))
-      } catch (error) {
-        console.error('Could not process a notification websocket message.', error)
+    const connect = () => {
+      const token = localStorage.getItem('access_token')
+      const fullUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url
+      ws = new WebSocket(fullUrl)
+      wsRef.current = ws
+
+      ws.onmessage = (e) => {
+        try {
+          onMessage(JSON.parse(e.data))
+        } catch (error) {
+          console.error('Could not process a notification websocket message.', error)
+        }
+      }
+
+      ws.onerror = () => console.error('Notification websocket connection failed.')
+
+      ws.onclose = () => {
+        if (disconnected) return
+        reconnectTimer = setTimeout(connect, reconnectDelay)
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000)
       }
     }
 
-    ws.onerror = () => console.error('Notification websocket connection failed.')
+    connect()
 
-    return () => { ws.close() }
+    return () => {
+      disconnected = true
+      clearTimeout(reconnectTimer)
+      ws?.close()
+      wsRef.current = null
+    }
   }, [onMessage, url])
 
   return wsRef
