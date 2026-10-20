@@ -1,0 +1,5 @@
+Wire daily cohorts on dashboard and API client; frontend auth fixes
+
+- add getDailyCohorts API client
+- show today's recommended cohorts on dashboard
+- login flow normalization fixes

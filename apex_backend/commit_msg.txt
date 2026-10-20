@@ -1,0 +1,6 @@
+Add monthly video upload, coach notifications and video placeholders; wire daily cohorts and merit scoring
+
+- upload_month_videos management command
+- placeholder video in static/videos
+- send notification to users who qualify for mentorship
+- frontend/back changes previously implemented

@@ -1,0 +1,2 @@
+web: daphne -b 0.0.0.0 -p $PORT apex_backend.asgi:application
+worker: celery -A apex_backend worker --loglevel=info
