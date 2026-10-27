@@ -70,7 +70,7 @@ urlpatterns = [
     path('api/v1/analytics/', include('apps.analytics.urls')),
     path('api/v1/analytics/public/', PublicPlatformStatsView.as_view()),
     path('api/v1/admin/', include('apps.fraud.urls')),
-    path('api/v1/social/', include('apps.social.urls')),
+   
 ]
 
 if settings.DEBUG:
